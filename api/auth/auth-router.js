@@ -17,14 +17,12 @@ router.post('/register', validateRoleName, (req, res, next) => {
       "role_name": "angel"
     }
    */
-  let user = req.body
+  const { username, password } = req.body
+  const { role_name } = req
 
-  const rounds = process.env.BCRYPT_ROUNDS || 8
-  const hash = bcrypt.hashSync(user.password, rounds)
+  const hash = bcrypt.hashSync(password, 8)
 
-  user.password = hash
-
-  Users.add(user)
+  Users.add({ username, password: hash, role_name })
     .then((user) => {
       res.status(201).json(user)
     })
@@ -51,22 +49,16 @@ router.post('/login', checkUsernameExists, (req, res, next) => {
       "role_name": "admin" // the role of the authenticated user
     }
    */
-  const { username, password } = req.body
 
-  Users.findBy({ username })
-    .then(([user]) => {
-      if (user && bcrypt.compareSync(password, user.password)) {
-        const token = makeToken(user)
-
-        res.status(200).json({
-          message: `${user.username} is back !`,
-          token,
-        })
-      } else {
-        res.status(401).json({ message: 'Invalid Credentials' })
-      }
+  if (bcrypt.compareSync(req.body.password, req.user.password)) {
+    const token = makeToken(req.user)
+    res.json({
+      message: `${req.username} is back !`,
+      token,
     })
-    .catch(next)
+  } else {
+    next({ status: 401, message: 'Invalid Credentials' })
+  }
 })
 
 function makeToken(user) {
@@ -76,7 +68,7 @@ function makeToken(user) {
     role: user.role_name,
   }
   const options = {
-    expiresIn: '10000s',
+    expiresIn: '1d',
   }
   return jwt.sign(payload, JWT_SECRET, options)
 }

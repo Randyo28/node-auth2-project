@@ -44,8 +44,8 @@ const only = (role_name) => (req, res, next) => {
 
     Pull the decoded token from the req object, to avoid verifying it again!
   */
-  if (!req.token.role_name || req.token.role_name !== role_name) {
-    res.status(403).json({ message: 403 })
+  if (role_name === req.token.role_name) {
+    res.status(403).json({ message: 'This is not for you' })
   } else {
     next()
   }
@@ -59,11 +59,16 @@ const checkUsernameExists = async (req, res, next) => {
       "message": "Invalid credentials"
     }
   */
-  const user = await User.findBy({ username: req.body.username }).first()
-  if (!user) {
-    res.status(401).json({ message: 'Invalid credentials' })
-  } else {
-    next()
+  try {
+    const user = await User.findBy({ username: req.body.username }).first()
+    if (!user) {
+      res.status(401).json({ message: 'Invalid credentials' })
+    } else {
+      req.user = user
+      next()
+    }
+  } catch (err) {
+    next(err)
   }
 }
 
@@ -86,17 +91,19 @@ const validateRoleName = (req, res, next) => {
       "message": "Role name can not be longer than 32 chars"
     }
   */
-  const role = req.body.role_name.trim()
 
-  if (!role || !role.length < 1) {
+  if (!req.body.role_name || !req.body.role_name.trim()) {
     req.role_name = 'student'
     next()
-  } else if (role === 'admin') {
+  } else if (req.body.role_name.trim() === 'admin') {
     res.status(422).json({ message: 'Role name can not be admin' })
-  } else if (role.length > 32) {
+  } else if (req.body.role_name.trim().length > 32) {
     res
       .status(422)
       .json({ message: 'Role name can not be longer than 32 chars' })
+  } else {
+    req.role_name = req.role_name.trim()
+    next()
   }
 }
 
