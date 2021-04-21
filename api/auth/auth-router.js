@@ -1,8 +1,11 @@
-const router = require("express").Router();
-const { checkUsernameExists, validateRoleName } = require('./auth-middleware');
-const { JWT_SECRET } = require("../secrets"); // use this secret!
+const router = require('express').Router()
+const jwt = require('jsonwebtoken')
+const bcrypt = require('bcryptjs')
+const { checkUsernameExists, validateRoleName } = require('./auth-middleware')
+const { JWT_SECRET } = require('../secrets') // use this secret!
+const Users = require('../users/users-model')
 
-router.post("/register", validateRoleName, (req, res, next) => {
+router.post('/register', validateRoleName, (req, res, next) => {
   /**
     [POST] /api/auth/register { "username": "anna", "password": "1234", "role_name": "angel" }
 
@@ -14,10 +17,19 @@ router.post("/register", validateRoleName, (req, res, next) => {
       "role_name": "angel"
     }
    */
-});
+  const { username, password } = req.body
+  const { role_name } = req
 
+  const hash = bcrypt.hashSync(password, 8)
 
-router.post("/login", checkUsernameExists, (req, res, next) => {
+  Users.add({ username, password: hash, role_name })
+    .then((user) => {
+      res.status(201).json(user)
+    })
+    .catch(next)
+})
+
+router.post('/login', checkUsernameExists, (req, res, next) => {
   /**
     [POST] /api/auth/login { "username": "sue", "password": "1234" }
 
@@ -37,6 +49,28 @@ router.post("/login", checkUsernameExists, (req, res, next) => {
       "role_name": "admin" // the role of the authenticated user
     }
    */
-});
 
-module.exports = router;
+  if (bcrypt.compareSync(req.body.password, req.user.password)) {
+    const token = makeToken(req.user)
+    res.json({
+      message: `${req.username} is back !`,
+      token,
+    })
+  } else {
+    next({ status: 401, message: 'Invalid Credentials' })
+  }
+})
+
+function makeToken(user) {
+  const payload = {
+    subject: user.user_id,
+    username: user.username,
+    role: user.role_name,
+  }
+  const options = {
+    expiresIn: '1d',
+  }
+  return jwt.sign(payload, JWT_SECRET, options)
+}
+
+module.exports = router
